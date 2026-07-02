@@ -296,6 +296,21 @@
   }
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
 
+  .ios-hint{
+    display:none;
+    background:rgba(65,80,177,0.08);
+    border:1.5px solid rgba(65,80,177,0.22);
+    border-radius:var(--radius-md);
+    padding:12px 16px;
+    font-size:0.84rem;
+    color:var(--indigo);
+    font-weight:500;
+    line-height:1.5;
+    margin-bottom:14px;
+    text-align:left;
+  }
+  .ios-hint strong{ display:block; margin-bottom:2px; font-weight:700; }
+
   [hidden]{ display:none !important; }
 </style>
 </head>
@@ -386,6 +401,10 @@
       <h2 class="step-title">Ton affiche est prête 🎉</h2>
       <div class="poster-wrap">
         <img id="posterPreview" alt="Affiche personnalisée Journée Famille Chrétienne 2026" />
+      </div>
+      <div class="ios-hint" id="iosHint">
+        <strong>📱 Sur iPhone / iPad</strong>
+        Appuie sur « Partager » ci-dessous — iOS te proposera d'enregistrer l'image dans tes Photos.
       </div>
       <div class="result-actions">
         <a class="btn-primary" id="downloadBtn" download="je-serai-la-en-couleur.png">⬇ Télécharger le PNG</a>
@@ -768,21 +787,96 @@
     stepForm.hidden = false;
   });
 
-  /* ============ Share / download ============ */
+  /* ============ Platform detection ============ */
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS 13+
+
+  /* Show hint and swap button priority on iOS */
+  if (isIOS){
+    document.getElementById('iosHint').style.display = 'block';
+    // Swap visual weight: Share becomes primary, Download becomes secondary
+    downloadBtn.className = 'btn-secondary';
+    shareBtn.className = 'btn-primary';
+  }
+
+  /* Helper: get a File object from the stored data URL */
+  async function getPosterFile(){
+    const dataUrl = posterPreview.dataset.url;
+    if (!dataUrl) return null;
+    const blob = await (await fetch(dataUrl)).blob();
+    return new File([blob], 'je-serai-la-en-couleur.png', { type: 'image/png' });
+  }
+
+  /* ============ Download button ============ */
+  downloadBtn.addEventListener('click', async (e) => {
+    if (!isIOS) return; // non-iOS: the <a download href=...> works natively, nothing to intercept
+
+    // iOS: <a download> is silently ignored — use Web Share API instead
+    e.preventDefault();
+    try {
+      const file = await getPosterFile();
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })){
+        await navigator.share({
+          files: [file],
+          title: 'Je serai là, en couleur',
+          text: 'Journée Famille Chrétienne 2026 — 02 août, Terrain du Collège St Raphael.',
+        });
+        return;
+      }
+    } catch(err){
+      if (err.name === 'AbortError') return; // user cancelled share sheet — not an error
+    }
+    // Absolute last resort: open in new tab so they can long-press → Save to Photos
+    openInNewTab();
+    toast('Appuie longuement sur l\'image → "Enregistrer dans Photos"');
+  });
+
+  /* ============ Share button ============ */
   shareBtn.addEventListener('click', async () => {
     const dataUrl = posterPreview.dataset.url;
     if (!dataUrl) return;
-    try{
-      const blob = await (await fetch(dataUrl)).blob();
-      const file = new File([blob], 'je-serai-la-en-couleur.png', { type: 'image/png' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })){
-        await navigator.share({ files: [file], title: 'Je serai là, en couleur', text: 'Journée Famille Chrétienne 2026 — 02 août, Terrain du Collège St Raphael.' });
+    try {
+      const file = await getPosterFile();
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })){
+        await navigator.share({
+          files: [file],
+          title: 'Je serai là, en couleur',
+          text: 'Journée Famille Chrétienne 2026 — 02 août, Terrain du Collège St Raphael.',
+        });
         return;
       }
-    }catch(err){ /* fall through to download */ }
-    downloadBtn.click();
-    toast('Image téléchargée — partage-la depuis tes photos !');
+      // canShare not available (desktop without share support): fall through to download
+    } catch(err){
+      if (err.name === 'AbortError') return;
+    }
+    // Desktop fallback: trigger the normal anchor download
+    if (!isIOS){
+      downloadBtn.click();
+      toast('Image téléchargée — partage-la depuis tes photos !');
+    } else {
+      openInNewTab();
+      toast('Appuie longuement sur l\'image → "Enregistrer dans Photos"');
+    }
   });
+
+  /* Open the poster image in a new tab (iOS last-resort fallback) */
+  function openInNewTab(){
+    const dataUrl = posterPreview.dataset.url;
+    if (!dataUrl) return;
+    const w = window.open('', '_blank');
+    if (!w) { toast('Active les pop-ups pour ouvrir l\'image.'); return; }
+    w.document.write(`<!DOCTYPE html><html><head>
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>Je serai là, en couleur</title>
+      <style>body{margin:0;background:#111;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;}
+      img{max-width:100%;display:block;}
+      p{color:#fff;font-family:sans-serif;font-size:14px;margin-top:14px;text-align:center;padding:0 20px;opacity:.7;}
+      </style></head><body>
+      <img src="${dataUrl}" alt="Affiche JFC 2026" />
+      <p>Appuie longuement sur l'image pour l'enregistrer dans tes Photos.</p>
+      </body></html>`);
+    w.document.close();
+  }
 
 })();
 </script>
