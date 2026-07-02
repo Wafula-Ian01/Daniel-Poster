@@ -177,6 +177,23 @@
   .text-fields input::placeholder{ color:#a6a3b8; font-weight:400; }
   .text-fields input:focus{ border-color:var(--cyan); background:#fff; }
 
+  .text-fields select{
+    font-family:'Inter', sans-serif;
+    font-size:1rem; font-weight:500;
+    padding:13px 40px 13px 16px;
+    border-radius:var(--radius-md);
+    border:1.5px solid rgba(33,31,54,0.14);
+    background:#fbf9f5 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2362607a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E") no-repeat right 14px center;
+    -webkit-appearance:none; appearance:none;
+    color:var(--ink);
+    outline:none;
+    cursor:pointer;
+    transition:border-color .15s ease, background-color .15s ease;
+    width:100%;
+  }
+  .text-fields select:focus{ border-color:var(--cyan); background-color:#fff; }
+  .text-fields select option{ color:var(--ink); background:#fff; }
+
   .hint{ font-size:0.76rem; color:var(--ink-soft); font-weight:500; }
 
   /* ---------- Buttons ---------- */
@@ -326,6 +343,32 @@
           <label>Ton nom complet
             <input id="nameInput" maxlength="40" placeholder="Ex. Marie Kabongo" autocomplete="name" />
           </label>
+          <label>Doyenné
+            <select id="doyenneInput">
+              <option value="">— Sélectionne ton doyenné —</option>
+              <option>Saint Jacques</option>
+              <option>Saint Matthieu</option>
+              <option>Saint Marc</option>
+              <option>Saint Kibuka</option>
+              <option>Sainte Thérèse</option>
+              <option>Saint Frédéric</option>
+              <option>Saint Kizito</option>
+              <option>Saint Alphonse</option>
+              <option>Saint Gabriel</option>
+              <option>Saint Antoine de Padoue</option>
+              <option>Saint Pierre</option>
+              <option>Saint Joseph</option>
+              <option>Saint Augustin</option>
+              <option>Elimo Santu</option>
+              <option>Notre Dame de Sagesse</option>
+              <option>Saint Noé Mawagali</option>
+              <option>Saint Sacrement</option>
+              <option>Saint Cyprien</option>
+              <option>Saint Léonard</option>
+              <option>Saint François</option>
+              <option>Notre Dame de Grâce</option>
+            </select>
+          </label>
           <label>Comment veux-tu apparaître ? <span class="opt">(optionnel)</span>
             <input id="roleInput" maxlength="28" placeholder="Ex. Jeune, Choriste, Maman..." />
           </label>
@@ -387,7 +430,7 @@
   /* ============ Template geometry (measured from the source artwork, 2480×3148px) ============ */
   const TPL_W = 2480, TPL_H = 3148;
   const CIRCLE_CX = 1240, CIRCLE_CY = 1230, CIRCLE_R = 493; // photo circle, inset slightly inside the printed ring
-  const PANEL_H = 360; // extra footer band added below the artwork for the attendee's name
+  const PANEL_H = 520; // doyenné + name + role tag
   const OUT_W = TPL_W, OUT_H = TPL_H + PANEL_H;
 
   const COLORS = { indigo:'#4150b1', mauve:'#b16999', amber:'#f2a559', cyan:'#2f93bd', ink:'#211f36', panelBg:'#f7f4ee' };
@@ -407,7 +450,7 @@
   const photoDrop = $('photoDrop'), photoInput = $('photoInput'), ringPlaceholder = $('ringPlaceholder');
   const thumbCanvas = $('thumbCanvas'), photoActions = $('photoActions');
   const reframeBtn = $('reframeBtn'), removePhotoBtn = $('removePhotoBtn');
-  const nameInput = $('nameInput'), roleInput = $('roleInput'), generateBtn = $('generateBtn');
+  const nameInput = $('nameInput'), doyenneInput = $('doyenneInput'), roleInput = $('roleInput'), generateBtn = $('generateBtn');
   const stepForm = $('step-form'), stepResult = $('step-result');
   const posterPreview = $('posterPreview'), downloadBtn = $('downloadBtn'), shareBtn = $('shareBtn'), restartBtn = $('restartBtn');
   const reframeModal = $('reframeModal'), cropStage = $('cropStage'), cropImg = $('cropImg'), zoomRange = $('zoomRange');
@@ -620,25 +663,82 @@
 
     const centerX = TPL_W / 2;
     const name = (nameInput.value || '').trim().toUpperCase();
+    const doyen = (doyenneInput.value || '').trim().toUpperCase();
     const role = (roleInput.value || '').trim().toUpperCase();
     const maxTextWidth = TPL_W - 240;
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    const nameY = role ? TPL_H + 8 + 150 : TPL_H + 8 + PANEL_H / 2 + 10;
+    // --- vertical layout ---
+    // Slots (top of panel = TPL_H + 8):
+    //   doyenné label+value  → rows 1-2
+    //   name                 → row 3
+    //   role pill            → row 4
+    const hasDoyen = doyen.length > 0;
+    const hasRole  = role.length > 0;
+
+    const PANEL_TOP = TPL_H + 8;
+
+    // Y positions scale to what's actually shown
+    let doyenLabelY, doyenY, nameY, roleY;
+    if (hasDoyen && hasRole){
+      doyenLabelY = PANEL_TOP + 80;
+      doyenY      = PANEL_TOP + 155;
+      nameY       = PANEL_TOP + 295;
+      roleY       = PANEL_TOP + 420;
+    } else if (hasDoyen){
+      doyenLabelY = PANEL_TOP + 90;
+      doyenY      = PANEL_TOP + 165;
+      nameY       = PANEL_TOP + 340;
+      roleY       = null;
+    } else if (hasRole){
+      doyenLabelY = null; doyenY = null;
+      nameY       = PANEL_TOP + 175;
+      roleY       = PANEL_TOP + 380;
+    } else {
+      doyenLabelY = null; doyenY = null;
+      nameY       = PANEL_TOP + PANEL_H / 2;
+      roleY       = null;
+    }
+
+    // ---- Doyenné block (above the name) ----
+    if (hasDoyen){
+      // Small uppercase label "DOYENNÉ"
+      ctx.font = "700 34px 'Inter', sans-serif";
+      ctx.letterSpacing = '0.12em';
+      ctx.fillStyle = COLORS.mauve;
+      ctx.fillText('DOYENNÉ', centerX, doyenLabelY);
+      ctx.letterSpacing = '0';
+
+      // Doyenné value — prominent, large, indigo
+      const doyenSize = fitFont(ctx, doyen, 'Unbounded', 700, maxTextWidth, 70, 38);
+      ctx.font = `700 ${doyenSize}px 'Unbounded', sans-serif`;
+      ctx.fillStyle = COLORS.indigo;
+      ctx.fillText(doyen, centerX, doyenY);
+
+      // Thin divider below the doyenné, above the name
+      const divGrad = ctx.createLinearGradient(centerX - 500, 0, centerX + 500, 0);
+      divGrad.addColorStop(0, 'rgba(65,80,177,0)');
+      divGrad.addColorStop(0.5, 'rgba(65,80,177,0.35)');
+      divGrad.addColorStop(1, 'rgba(65,80,177,0)');
+      ctx.fillStyle = divGrad;
+      ctx.fillRect(centerX - 500, doyenY + doyenSize * 0.7, 1000, 3);
+    }
+
+    // ---- Name ----
     const nameSize = fitFont(ctx, name, 'Unbounded', 800, maxTextWidth, 116, 54);
     ctx.font = `800 ${nameSize}px 'Unbounded', sans-serif`;
     ctx.fillStyle = COLORS.ink;
     ctx.fillText(name, centerX, nameY);
 
-    if (role){
+    // ---- Role pill ----
+    if (hasRole && roleY !== null){
       ctx.font = "700 40px 'Inter', sans-serif";
       const pillPadX = 36, pillH = 64;
       const textW = ctx.measureText(role).width;
       const pillW = textW + pillPadX * 2;
-      const pillY = TPL_H + 8 + 268;
-      roundRectPath(ctx, centerX - pillW / 2, pillY - pillH / 2, pillW, pillH, pillH / 2);
+      roundRectPath(ctx, centerX - pillW / 2, roleY - pillH / 2, pillW, pillH, pillH / 2);
       ctx.save();
       const pillGrad = ctx.createLinearGradient(centerX - pillW / 2, 0, centerX + pillW / 2, 0);
       pillGrad.addColorStop(0, COLORS.indigo); pillGrad.addColorStop(1, COLORS.cyan);
@@ -647,7 +747,7 @@
       ctx.stroke();
       ctx.restore();
       ctx.fillStyle = COLORS.cyan;
-      ctx.fillText(role, centerX, pillY + 2);
+      ctx.fillText(role, centerX, roleY + 2);
     }
 
     const dataUrl = canvas.toDataURL('image/png');
